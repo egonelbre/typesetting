@@ -8,6 +8,8 @@
 // For the parsing of the various tables, see package [tables].
 package opentype
 
+import "slices"
+
 type Tag uint32
 
 // NewTag returns the tag for <abcd>.
@@ -47,11 +49,67 @@ type GlyphExtents struct {
 type SegmentOp uint8
 
 const (
-	SegmentOpMoveTo SegmentOp = iota
-	SegmentOpLineTo
-	SegmentOpQuadTo
-	SegmentOpCubeTo
+	SegmentOpNone SegmentOp = 0
+
+	SegmentOpMoveTo SegmentOp = 0b01
+	SegmentOpLineTo           = 0b10
+	SegmentOpQuadTo           = 0b1111
+	SegmentOpCubeTo           = 0b111111
+
+	SegmentOpMoveTo_At1 = SegmentOpMoveTo << 2
+	SegmentOpLineTo_At1 = SegmentOpLineTo << 2
+	SegmentOpQuadTo_At1 = SegmentOpQuadTo << 2
+
+	SegmentOpMoveTo_At2 = SegmentOpMoveTo << 4
+	SegmentOpLineTo_At2 = SegmentOpLineTo << 4
+
+	SegmentOpMoveTo_MoveTo = SegmentOpMoveTo | SegmentOpMoveTo_At1
+	SegmentOpMoveTo_LineTo = SegmentOpMoveTo | SegmentOpLineTo_At1
+	SegmentOpLineTo_LineTo = SegmentOpLineTo | SegmentOpLineTo_At1
+	SegmentOpLineTo_MoveTo = SegmentOpLineTo | SegmentOpMoveTo_At1
+
+	SegmentOpMoveTo_QuadTo = SegmentOpMoveTo | SegmentOpQuadTo_At1
+	SegmentOpLineTo_QuadTo = SegmentOpLineTo | SegmentOpQuadTo_At1
+
+	SegmentOpQuadTo_MoveTo = SegmentOpQuadTo | SegmentOpMoveTo_At2
+	SegmentOpQuadTo_LineTo = SegmentOpQuadTo | SegmentOpLineTo_At2
+
+	SegmentOpMoveTo_MoveTo_MoveTo = SegmentOpMoveTo | SegmentOpMoveTo_At1 | SegmentOpMoveTo_At2
+	SegmentOpMoveTo_LineTo_MoveTo = SegmentOpMoveTo | SegmentOpLineTo_At1 | SegmentOpMoveTo_At2
+	SegmentOpLineTo_LineTo_MoveTo = SegmentOpLineTo | SegmentOpLineTo_At1 | SegmentOpMoveTo_At2
+	SegmentOpLineTo_MoveTo_MoveTo = SegmentOpLineTo | SegmentOpMoveTo_At1 | SegmentOpMoveTo_At2
+
+	SegmentOpMoveTo_MoveTo_LineTo = SegmentOpMoveTo | SegmentOpMoveTo_At1 | SegmentOpLineTo_At2
+	SegmentOpMoveTo_LineTo_LineTo = SegmentOpMoveTo | SegmentOpLineTo_At1 | SegmentOpLineTo_At2
+	SegmentOpLineTo_LineTo_LineTo = SegmentOpLineTo | SegmentOpLineTo_At1 | SegmentOpLineTo_At2
+	SegmentOpLineTo_MoveTo_LineTo = SegmentOpLineTo | SegmentOpMoveTo_At1 | SegmentOpLineTo_At2
 )
+
+var segmentOpUsed = [...]byte{
+	SegmentOpMoveTo: 1,
+	SegmentOpLineTo: 1,
+	SegmentOpQuadTo: 1,
+	SegmentOpCubeTo: 1,
+
+	SegmentOpMoveTo_MoveTo: 2,
+	SegmentOpMoveTo_LineTo: 2,
+	SegmentOpLineTo_LineTo: 2,
+	SegmentOpLineTo_MoveTo: 2,
+
+	SegmentOpMoveTo_QuadTo: 3,
+	SegmentOpLineTo_QuadTo: 3,
+	SegmentOpQuadTo_MoveTo: 3,
+	SegmentOpQuadTo_LineTo: 3,
+
+	SegmentOpMoveTo_MoveTo_MoveTo: 3,
+	SegmentOpMoveTo_LineTo_MoveTo: 3,
+	SegmentOpLineTo_LineTo_MoveTo: 3,
+	SegmentOpLineTo_MoveTo_MoveTo: 3,
+	SegmentOpMoveTo_MoveTo_LineTo: 3,
+	SegmentOpMoveTo_LineTo_LineTo: 3,
+	SegmentOpLineTo_LineTo_LineTo: 3,
+	SegmentOpLineTo_MoveTo_LineTo: 3,
+}
 
 type SegmentPoint struct {
 	X, Y float32 // expressed in fonts units
@@ -84,4 +142,77 @@ func (s *Segment) ArgsSlice() []SegmentPoint {
 	default:
 		panic("unreachable")
 	}
+}
+
+type SegmentsBuilder struct {
+	complete []Segment
+
+	tail Segment
+}
+
+func (builder *SegmentsBuilder) Grow(n int) {
+	builder.complete = slices.Grow(builder.complete, n)
+}
+
+func (builder *SegmentsBuilder) Finish() []Segment {
+	if builder.tail.Op != 0 {
+		builder.complete = append(builder.complete, builder.tail)
+		builder.tail.Op = 0
+	}
+	return builder.complete
+}
+
+func (builder *SegmentsBuilder) MoveTo(p SegmentPoint) {
+	used := segmentOpUsed[builder.tail.Op]
+	builder.tail.Args[used] = p
+	shift := used * 2
+	builder.tail.Op |= SegmentOpMoveTo << shift
+	if shift == 4 {
+		builder.complete = append(builder.complete, builder.tail)
+		builder.tail.Op = 0
+	}
+}
+
+func (builder *SegmentsBuilder) LineTo(p SegmentPoint) {
+	used := segmentOpUsed[builder.tail.Op]
+	builder.tail.Args[used] = p
+	shift := used * 2
+	builder.tail.Op |= SegmentOpLineTo << shift
+	if shift == 4 {
+		builder.complete = append(builder.complete, builder.tail)
+		builder.tail.Op = 0
+	}
+}
+
+func (builder *SegmentsBuilder) QuadTo(a, b SegmentPoint) {
+	used := segmentOpUsed[builder.tail.Op]
+	if used > 1 {
+		builder.complete = append(builder.complete, builder.tail)
+		builder.tail.Op = SegmentOpQuadTo
+		builder.tail.Args[0] = a
+		builder.tail.Args[1] = b
+		return
+	}
+
+	builder.tail.Args[used] = a
+	builder.tail.Args[used+1] = b
+
+	shift := used * 2
+	builder.tail.Op |= SegmentOpQuadTo << shift
+	if shift == 2 {
+		builder.complete = append(builder.complete, builder.tail)
+		builder.tail.Op = 0
+	}
+}
+
+func (builder *SegmentsBuilder) CubeTo(a, b, c SegmentPoint) {
+	if builder.tail.Op != 0 {
+		builder.complete = append(builder.complete, builder.tail)
+		builder.tail.Op = 0
+	}
+
+	builder.complete = append(builder.complete, Segment{
+		Op:   SegmentOpCubeTo,
+		Args: [3]SegmentPoint{a, b, c},
+	})
 }
