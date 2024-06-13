@@ -142,40 +142,50 @@ func (builder *SegmentsBuilder) Finish() []Segment {
 }
 
 func (builder *SegmentsBuilder) MoveTo(p SegmentPoint) {
-	used := builder.tail.Op.Used()
-	builder.tail.Args[used] = p
-	builder.tail.Op |= SegmentOpMoveTo << (used * 2)
-	if used == 2 {
+	switch builder.tail.Op.Used() {
+	case 0:
+		builder.tail.Args[0] = p
+		builder.tail.Op = SegmentOpMoveTo
+	case 1:
+		builder.tail.Args[1] = p
+		builder.tail.Op = SegmentOpMoveTo << 2
+	case 2:
+		builder.tail.Args[2] = p
+		builder.tail.Op = SegmentOpMoveTo << 4
 		builder.complete = append(builder.complete, builder.tail)
 		builder.tail.Op = 0
 	}
 }
 
 func (builder *SegmentsBuilder) LineTo(p SegmentPoint) {
-	used := builder.tail.Op.Used()
-	builder.tail.Args[used] = p
-	builder.tail.Op |= SegmentOpLineTo << (used * 2)
-	if used == 2 {
+	switch builder.tail.Op.Used() {
+	case 0:
+		builder.tail.Args[0] = p
+		builder.tail.Op = SegmentOpLineTo
+	case 1:
+		builder.tail.Args[1] = p
+		builder.tail.Op = SegmentOpLineTo << 2
+	case 2:
+		builder.tail.Args[2] = p
+		builder.tail.Op = SegmentOpLineTo << 4
 		builder.complete = append(builder.complete, builder.tail)
 		builder.tail.Op = 0
 	}
 }
 
 func (builder *SegmentsBuilder) QuadTo(a, b SegmentPoint) {
-	used := builder.tail.Op.Used()
-	if used > 1 {
+	switch builder.tail.Op.Used() {
+	default:
 		builder.complete = append(builder.complete, builder.tail)
+		fallthrough
+	case 0:
 		builder.tail.Op = SegmentOpQuadTo
 		builder.tail.Args[0] = a
 		builder.tail.Args[1] = b
-		return
-	}
-
-	builder.tail.Args[used] = a
-	builder.tail.Args[used+1] = b
-
-	builder.tail.Op |= SegmentOpQuadTo << (used * 2)
-	if used == 1 {
+	case 1:
+		builder.tail.Op = SegmentOpQuadTo << 2
+		builder.tail.Args[1] = a
+		builder.tail.Args[2] = b
 		builder.complete = append(builder.complete, builder.tail)
 		builder.tail.Op = 0
 	}
@@ -186,7 +196,6 @@ func (builder *SegmentsBuilder) CubeTo(a, b, c SegmentPoint) {
 		builder.complete = append(builder.complete, builder.tail)
 		builder.tail.Op = 0
 	}
-
 	builder.complete = append(builder.complete, Segment{
 		Op:   SegmentOpCubeTo,
 		Args: [3]SegmentPoint{a, b, c},
