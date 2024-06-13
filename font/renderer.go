@@ -264,7 +264,6 @@ func buildSegments(points []contourPoint) []Segment {
 	var flush bool
 
 	// TODO: there might be some bug below
-
 	for _, point := range points {
 		if flush {
 			complete = append(complete, tail)
@@ -278,8 +277,7 @@ func buildSegments(points []contourPoint) []Segment {
 				firstOnCurve = p
 				firstOnCurveValid = true
 
-				transition := ot.Transitions[ot.SegmentOpMoveTo-1][tail.Op]
-				to, at := transition&0b11111, transition>>5
+				to, at := ot.Transition(tail.Op, ot.SegmentOpMoveTo)
 				tail.Op, tail.Args[at] = to, firstOnCurve
 				flush = at == 2
 
@@ -296,8 +294,7 @@ func buildSegments(points []contourPoint) []Segment {
 				lastOffCurve = p
 				lastOffCurveValid = true
 
-				transition := ot.Transitions[ot.SegmentOpMoveTo-1][tail.Op]
-				to, at := transition&0b11111, transition>>5
+				to, at := ot.Transition(tail.Op, ot.SegmentOpMoveTo)
 				tail.Op, tail.Args[at] = to, firstOnCurve
 				flush = at == 2
 			}
@@ -310,19 +307,17 @@ func buildSegments(points []contourPoint) []Segment {
 					continue
 				}
 			} else {
-				transition := ot.Transitions[ot.SegmentOpLineTo-1][tail.Op]
-				to, at := transition&0b11111, transition>>5
+				to, at := ot.Transition(tail.Op, ot.SegmentOpLineTo)
 				tail.Op, tail.Args[at] = to, p
 				flush = at == 2
 			}
 		} else {
-			var at ot.SegmentOp
-			transition := ot.Transitions[ot.SegmentOpQuadTo-1][tail.Op]
-			if transition == 0 {
+			to, at := ot.Transition(tail.Op, ot.SegmentOpQuadTo)
+			if to == 0 {
 				complete = append(complete, tail)
-				tail.Op, at = ot.SegmentOpQuadTo, 0
+				tail.Op = ot.SegmentOpQuadTo
 			} else {
-				tail.Op, at = transition&0b11111, transition>>5
+				tail.Op = to
 			}
 
 			if !point.isOnCurve {
@@ -346,21 +341,17 @@ func buildSegments(points []contourPoint) []Segment {
 
 			// closing the contour
 			if !firstOffCurveValid && !lastOffCurveValid {
-				transition := ot.Transitions[ot.SegmentOpLineTo-1][tail.Op]
-				to, at := transition&0b11111, transition>>5
+				to, at := ot.Transition(tail.Op, ot.SegmentOpLineTo)
 				tail.Op, tail.Args[at] = to, firstOnCurve
 				flush = at == 2
 			} else if firstOffCurveValid != lastOffCurveValid {
 
-				var at ot.SegmentOp
-				transition := ot.Transitions[ot.SegmentOpQuadTo-1][tail.Op]
-				if transition == 0 {
-					if tail.Op != 0 {
-						complete = append(complete, tail)
-					}
-					tail.Op, at = ot.SegmentOpQuadTo, 0
+				to, at := ot.Transition(tail.Op, ot.SegmentOpQuadTo)
+				if to == 0 {
+					complete = append(complete, tail)
+					tail.Op = ot.SegmentOpQuadTo
 				} else {
-					tail.Op, at = transition&0b11111, transition>>5
+					tail.Op = to
 				}
 
 				if !firstOffCurveValid {
@@ -371,13 +362,12 @@ func buildSegments(points []contourPoint) []Segment {
 
 				flush = at == 1
 			} else {
-				var at ot.SegmentOp
-				transition := ot.Transitions[ot.SegmentOpQuadTo-1][tail.Op]
-				if transition == 0 {
+				to, at := ot.Transition(tail.Op, ot.SegmentOpQuadTo)
+				if to == 0 {
 					complete = append(complete, tail)
-					tail.Op, at = ot.SegmentOpQuadTo, 0
+					tail.Op = ot.SegmentOpQuadTo
 				} else {
-					tail.Op, at = transition&0b11111, transition>>5
+					tail.Op = to
 				}
 
 				tail.Args[at], tail.Args[at+1] = lastOffCurve, midPoint(lastOffCurve, firstOffCurve)

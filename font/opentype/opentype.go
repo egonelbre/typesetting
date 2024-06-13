@@ -76,6 +76,11 @@ const (
 	SegmentOpLineTo_MoveTo_LineTo
 )
 
+func Transition(from, add SegmentOp) (to SegmentOp, at byte) {
+	transition := Transitions[add-1][from]
+	return transition & 0b11111, byte(transition >> 5)
+}
+
 var Transitions = [3][8]SegmentOp{
 	SegmentOpMoveTo - 1: {
 		SegmentOpNone: SegmentOpMoveTo | (0 << 5),
