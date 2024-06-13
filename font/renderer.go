@@ -259,16 +259,29 @@ func buildSegments(points []contourPoint) []Segment {
 		firstOnCurve, firstOffCurve, lastOffCurve                SegmentPoint
 	)
 
-	var out ot.SegmentsBuilder
-	out.Grow(len(points) / 2)
+	var buffer [32]Segment
+	complete := buffer[:0]
+	var tail Segment
+	var flush bool
 
 	for _, point := range points {
+		if flush {
+			complete = append(complete, tail)
+			tail.Op = 0
+			flush = false
+		}
+
 		p := point.SegmentPoint
 		if !firstOnCurveValid {
 			if point.isOnCurve {
 				firstOnCurve = p
 				firstOnCurveValid = true
-				out.MoveTo(p)
+
+				transition := ot.TransitionTable[ot.SegmentOpMoveTo-1][tail.Op]
+				to, at := transition&0b11111, transition>>5
+				tail.Op, tail.Args[at] = to, firstOnCurve
+				flush = at == 2
+
 			} else if !firstOffCurveValid {
 				firstOffCurve = p
 				firstOffCurveValid = true
@@ -281,7 +294,11 @@ func buildSegments(points []contourPoint) []Segment {
 				firstOnCurveValid = true
 				lastOffCurve = p
 				lastOffCurveValid = true
-				out.MoveTo(firstOnCurve)
+
+				transition := ot.TransitionTable[ot.SegmentOpMoveTo-1][tail.Op]
+				to, at := transition&0b11111, transition>>5
+				tail.Op, tail.Args[at] = to, firstOnCurve
+				flush = at == 2
 			}
 		} else if !lastOffCurveValid {
 			if !point.isOnCurve {
@@ -292,31 +309,79 @@ func buildSegments(points []contourPoint) []Segment {
 					continue
 				}
 			} else {
-				out.LineTo(p)
+				transition := ot.TransitionTable[ot.SegmentOpLineTo-1][tail.Op]
+				to, at := transition&0b11111, transition>>5
+				tail.Op, tail.Args[at] = to, p
+				flush = at == 2
 			}
 		} else {
+			var a, b SegmentPoint
+
 			if !point.isOnCurve {
-				out.QuadTo(lastOffCurve, midPoint(lastOffCurve, p))
+				a, b = lastOffCurve, midPoint(lastOffCurve, p)
 				lastOffCurve = p
 				lastOffCurveValid = true
 			} else {
-				out.QuadTo(lastOffCurve, p)
+				a, b = lastOffCurve, p
 				lastOffCurveValid = false
 			}
+
+			var to, at ot.SegmentOp
+			transition := ot.TransitionTable[ot.SegmentOpQuadTo-1][tail.Op]
+			if transition == 0 {
+				complete = append(complete, tail)
+				tail.Op = 0
+				to, at = ot.SegmentOpQuadTo, 0
+			} else {
+				to, at = transition&0b11111, transition>>5
+			}
+
+			tail.Op, tail.Args[at], tail.Args[at+1] = to, a, b
+			flush = at == 1
 		}
 
 		if point.isEndPoint {
 			// closing the contour
-			switch {
-			case !firstOffCurveValid && !lastOffCurveValid:
-				out.LineTo(firstOnCurve)
-			case !firstOffCurveValid && lastOffCurveValid:
-				out.QuadTo(lastOffCurve, firstOnCurve)
-			case firstOffCurveValid && !lastOffCurveValid:
-				out.QuadTo(firstOffCurve, firstOnCurve)
-			case firstOffCurveValid && lastOffCurveValid:
-				out.QuadTo(lastOffCurve, midPoint(lastOffCurve, firstOffCurve))
-				out.QuadTo(firstOffCurve, firstOnCurve)
+			if !firstOffCurveValid && !lastOffCurveValid {
+				transition := ot.TransitionTable[ot.SegmentOpLineTo-1][tail.Op]
+				to, at := transition&0b11111, transition>>5
+				tail.Op, tail.Args[at] = to, firstOnCurve
+				flush = at == 2
+			} else if firstOffCurveValid != lastOffCurveValid {
+				var a, b SegmentPoint
+				if !firstOffCurveValid {
+					a, b = lastOffCurve, firstOnCurve
+				} else {
+					b, a = firstOffCurve, firstOnCurve
+				}
+
+				var to, at ot.SegmentOp
+				transition := ot.TransitionTable[ot.SegmentOpQuadTo-1][tail.Op]
+				if transition == 0 {
+					complete = append(complete, tail)
+					tail.Op = 0
+					to, at = ot.SegmentOpQuadTo, 0
+				} else {
+					to, at = transition&0b11111, transition>>5
+				}
+
+				tail.Op, tail.Args[at], tail.Args[at+1] = to, a, b
+				flush = at == 1
+			} else {
+				var to, at ot.SegmentOp
+				transition := ot.TransitionTable[ot.SegmentOpQuadTo-1][tail.Op]
+				if transition == 0 {
+					complete = append(complete, tail)
+					tail.Op = 0
+					to, at = ot.SegmentOpQuadTo, 0
+				} else {
+					to, at = transition&0b11111, transition>>5
+				}
+
+				tail.Op, tail.Args[at], tail.Args[at+1] = to, lastOffCurve, midPoint(lastOffCurve, firstOffCurve)
+				complete = append(complete, tail)
+
+				tail.Op, tail.Args[at], tail.Args[at+1] = ot.SegmentOpQuadTo, firstOffCurve, firstOnCurve
 			}
 
 			firstOnCurveValid = false
@@ -325,7 +390,10 @@ func buildSegments(points []contourPoint) []Segment {
 		}
 	}
 
-	return out.Finish()
+	if tail.Op != 0 {
+		complete = append(complete, tail)
+	}
+	return complete
 }
 
 type errGlyphOutOfRange int

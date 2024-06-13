@@ -8,8 +8,6 @@
 // For the parsing of the various tables, see package [tables].
 package opentype
 
-import "slices"
-
 type Tag uint32
 
 // NewTag returns the tag for <abcd>.
@@ -78,33 +76,7 @@ const (
 	SegmentOpLineTo_MoveTo_LineTo
 )
 
-var segmentOpUsed = [256]byte{
-	SegmentOpMoveTo: 1,
-	SegmentOpLineTo: 1,
-	SegmentOpQuadTo: 2,
-	SegmentOpCubeTo: 3,
-
-	SegmentOpMoveTo_MoveTo: 2,
-	SegmentOpMoveTo_LineTo: 2,
-	SegmentOpLineTo_LineTo: 2,
-	SegmentOpLineTo_MoveTo: 2,
-
-	SegmentOpMoveTo_QuadTo: 3,
-	SegmentOpLineTo_QuadTo: 3,
-	SegmentOpQuadTo_MoveTo: 3,
-	SegmentOpQuadTo_LineTo: 3,
-
-	SegmentOpMoveTo_MoveTo_MoveTo: 3,
-	SegmentOpMoveTo_LineTo_MoveTo: 3,
-	SegmentOpLineTo_LineTo_MoveTo: 3,
-	SegmentOpLineTo_MoveTo_MoveTo: 3,
-	SegmentOpMoveTo_MoveTo_LineTo: 3,
-	SegmentOpMoveTo_LineTo_LineTo: 3,
-	SegmentOpLineTo_LineTo_LineTo: 3,
-	SegmentOpLineTo_MoveTo_LineTo: 3,
-}
-
-var transitionTable = [3][8]SegmentOp{
+var TransitionTable = [3][8]SegmentOp{
 	SegmentOpMoveTo - 1: {
 		SegmentOpNone: SegmentOpMoveTo | (0 << 5),
 
@@ -173,50 +145,45 @@ func (s *Segment) ArgsSlice() []SegmentPoint {
 }
 
 type SegmentsBuilder struct {
-	complete []Segment
-
 	tail Segment
 }
 
-func (builder *SegmentsBuilder) Grow(n int) {
-	builder.complete = slices.Grow(builder.complete, n)
-}
-
-func (builder *SegmentsBuilder) Finish() []Segment {
+func (builder *SegmentsBuilder) Finish(complete []Segment) []Segment {
 	if builder.tail.Op != 0 {
-		builder.complete = append(builder.complete, builder.tail)
-		builder.tail.Op = 0
+		return append(complete, builder.tail)
 	}
-	return builder.complete
+	return complete
 }
 
-func (builder *SegmentsBuilder) MoveTo(p SegmentPoint) {
-	transition := transitionTable[SegmentOpMoveTo-1][builder.tail.Op]
+func (builder *SegmentsBuilder) MoveTo(complete []Segment, p SegmentPoint) []Segment {
+	transition := TransitionTable[SegmentOpMoveTo-1][builder.tail.Op]
 	to, at := transition&0b11111, transition>>5
 	builder.tail.Op = to
 	builder.tail.Args[at] = p
 	if at == 2 {
-		builder.complete = append(builder.complete, builder.tail)
+		complete = append(complete, builder.tail)
 		builder.tail.Op = 0
 	}
+	return complete
 }
 
-func (builder *SegmentsBuilder) LineTo(p SegmentPoint) {
-	transition := transitionTable[SegmentOpLineTo-1][builder.tail.Op]
+func (builder *SegmentsBuilder) LineTo(complete []Segment, p SegmentPoint) []Segment {
+	transition := TransitionTable[SegmentOpLineTo-1][builder.tail.Op]
 	to, at := transition&0b11111, transition>>5
 	builder.tail.Op = to
 	builder.tail.Args[at] = p
 	if at == 2 {
-		builder.complete = append(builder.complete, builder.tail)
+		complete = append(complete, builder.tail)
 		builder.tail.Op = 0
 	}
+	return complete
 }
 
-func (builder *SegmentsBuilder) QuadTo(a, b SegmentPoint) {
-	transition := transitionTable[SegmentOpQuadTo-1][builder.tail.Op]
+func (builder *SegmentsBuilder) QuadTo(complete []Segment, a, b SegmentPoint) []Segment {
+	transition := TransitionTable[SegmentOpQuadTo-1][builder.tail.Op]
 	var to, at SegmentOp
 	if transition == 0 {
-		builder.complete = append(builder.complete, builder.tail)
+		complete = append(complete, builder.tail)
 		builder.tail.Op = 0
 		to, at = SegmentOpQuadTo, 0
 	} else {
@@ -228,18 +195,19 @@ func (builder *SegmentsBuilder) QuadTo(a, b SegmentPoint) {
 	builder.tail.Args[at+1] = b
 
 	if at == 1 {
-		builder.complete = append(builder.complete, builder.tail)
+		complete = append(complete, builder.tail)
 		builder.tail.Op = 0
 	}
+	return complete
 }
 
-func (builder *SegmentsBuilder) CubeTo(a, b, c SegmentPoint) {
+func (builder *SegmentsBuilder) CubeTo(complete []Segment, a, b, c SegmentPoint) []Segment {
 	if builder.tail.Op != 0 {
-		builder.complete = append(builder.complete, builder.tail)
+		complete = append(complete, builder.tail)
 		builder.tail.Op = 0
 	}
 
-	builder.complete = append(builder.complete, Segment{
+	return append(complete, Segment{
 		Op:   SegmentOpCubeTo,
 		Args: [3]SegmentPoint{a, b, c},
 	})
