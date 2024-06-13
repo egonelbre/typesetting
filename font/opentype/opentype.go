@@ -88,8 +88,8 @@ const (
 var segmentOpUsed = [...]byte{
 	SegmentOpMoveTo: 1,
 	SegmentOpLineTo: 1,
-	SegmentOpQuadTo: 1,
-	SegmentOpCubeTo: 1,
+	SegmentOpQuadTo: 2,
+	SegmentOpCubeTo: 3,
 
 	SegmentOpMoveTo_MoveTo: 2,
 	SegmentOpMoveTo_LineTo: 2,
