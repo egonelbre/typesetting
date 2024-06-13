@@ -76,7 +76,7 @@ const (
 	SegmentOpLineTo_MoveTo_LineTo
 )
 
-var TransitionTable = [3][8]SegmentOp{
+var Transitions = [3][8]SegmentOp{
 	SegmentOpMoveTo - 1: {
 		SegmentOpNone: SegmentOpMoveTo | (0 << 5),
 
@@ -156,7 +156,7 @@ func (builder *SegmentsBuilder) Finish(complete []Segment) []Segment {
 }
 
 func (builder *SegmentsBuilder) MoveTo(complete []Segment, p SegmentPoint) []Segment {
-	transition := TransitionTable[SegmentOpMoveTo-1][builder.tail.Op]
+	transition := Transitions[SegmentOpMoveTo-1][builder.tail.Op]
 	to, at := transition&0b11111, transition>>5
 	builder.tail.Op = to
 	builder.tail.Args[at] = p
@@ -168,7 +168,7 @@ func (builder *SegmentsBuilder) MoveTo(complete []Segment, p SegmentPoint) []Seg
 }
 
 func (builder *SegmentsBuilder) LineTo(complete []Segment, p SegmentPoint) []Segment {
-	transition := TransitionTable[SegmentOpLineTo-1][builder.tail.Op]
+	transition := Transitions[SegmentOpLineTo-1][builder.tail.Op]
 	to, at := transition&0b11111, transition>>5
 	builder.tail.Op = to
 	builder.tail.Args[at] = p
@@ -180,7 +180,7 @@ func (builder *SegmentsBuilder) LineTo(complete []Segment, p SegmentPoint) []Seg
 }
 
 func (builder *SegmentsBuilder) QuadTo(complete []Segment, a, b SegmentPoint) []Segment {
-	transition := TransitionTable[SegmentOpQuadTo-1][builder.tail.Op]
+	transition := Transitions[SegmentOpQuadTo-1][builder.tail.Op]
 	var to, at SegmentOp
 	if transition == 0 {
 		complete = append(complete, builder.tail)
