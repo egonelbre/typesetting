@@ -8,7 +8,10 @@
 // For the parsing of the various tables, see package [tables].
 package opentype
 
-import "slices"
+import (
+	"math/bits"
+	"slices"
+)
 
 type Tag uint32
 
@@ -85,31 +88,7 @@ const (
 	SegmentOpLineTo_MoveTo_LineTo = SegmentOpLineTo | SegmentOpMoveTo_At1 | SegmentOpLineTo_At2
 )
 
-var segmentOpUsed = [...]byte{
-	SegmentOpMoveTo: 1,
-	SegmentOpLineTo: 1,
-	SegmentOpQuadTo: 2,
-	SegmentOpCubeTo: 3,
-
-	SegmentOpMoveTo_MoveTo: 2,
-	SegmentOpMoveTo_LineTo: 2,
-	SegmentOpLineTo_LineTo: 2,
-	SegmentOpLineTo_MoveTo: 2,
-
-	SegmentOpMoveTo_QuadTo: 3,
-	SegmentOpLineTo_QuadTo: 3,
-	SegmentOpQuadTo_MoveTo: 3,
-	SegmentOpQuadTo_LineTo: 3,
-
-	SegmentOpMoveTo_MoveTo_MoveTo: 3,
-	SegmentOpMoveTo_LineTo_MoveTo: 3,
-	SegmentOpLineTo_LineTo_MoveTo: 3,
-	SegmentOpLineTo_MoveTo_MoveTo: 3,
-	SegmentOpMoveTo_MoveTo_LineTo: 3,
-	SegmentOpMoveTo_LineTo_LineTo: 3,
-	SegmentOpLineTo_LineTo_LineTo: 3,
-	SegmentOpLineTo_MoveTo_LineTo: 3,
-}
+func (op SegmentOp) Used() int { return (bits.Len8(uint8(op)) + 1) / 2 }
 
 type SegmentPoint struct {
 	X, Y float32 // expressed in fonts units
@@ -163,29 +142,27 @@ func (builder *SegmentsBuilder) Finish() []Segment {
 }
 
 func (builder *SegmentsBuilder) MoveTo(p SegmentPoint) {
-	used := segmentOpUsed[builder.tail.Op]
+	used := builder.tail.Op.Used()
 	builder.tail.Args[used] = p
-	shift := used * 2
-	builder.tail.Op |= SegmentOpMoveTo << shift
-	if shift == 4 {
+	builder.tail.Op |= SegmentOpMoveTo << (used * 2)
+	if used == 2 {
 		builder.complete = append(builder.complete, builder.tail)
 		builder.tail.Op = 0
 	}
 }
 
 func (builder *SegmentsBuilder) LineTo(p SegmentPoint) {
-	used := segmentOpUsed[builder.tail.Op]
+	used := builder.tail.Op.Used()
 	builder.tail.Args[used] = p
-	shift := used * 2
-	builder.tail.Op |= SegmentOpLineTo << shift
-	if shift == 4 {
+	builder.tail.Op |= SegmentOpLineTo << (used * 2)
+	if used == 2 {
 		builder.complete = append(builder.complete, builder.tail)
 		builder.tail.Op = 0
 	}
 }
 
 func (builder *SegmentsBuilder) QuadTo(a, b SegmentPoint) {
-	used := segmentOpUsed[builder.tail.Op]
+	used := builder.tail.Op.Used()
 	if used > 1 {
 		builder.complete = append(builder.complete, builder.tail)
 		builder.tail.Op = SegmentOpQuadTo
@@ -197,9 +174,8 @@ func (builder *SegmentsBuilder) QuadTo(a, b SegmentPoint) {
 	builder.tail.Args[used] = a
 	builder.tail.Args[used+1] = b
 
-	shift := used * 2
-	builder.tail.Op |= SegmentOpQuadTo << shift
-	if shift == 2 {
+	builder.tail.Op |= SegmentOpQuadTo << (used * 2)
+	if used == 1 {
 		builder.complete = append(builder.complete, builder.tail)
 		builder.tail.Op = 0
 	}
