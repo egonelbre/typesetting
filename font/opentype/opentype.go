@@ -49,47 +49,40 @@ type GlyphExtents struct {
 type SegmentOp uint8
 
 const (
-	SegmentOpNone SegmentOp = 0
+	SegmentOpNone SegmentOp = iota
 
-	SegmentOpMoveTo SegmentOp = 0b01
-	SegmentOpLineTo           = 0b10
-	SegmentOpQuadTo           = 0b1111
-	SegmentOpCubeTo           = 0b111111
+	SegmentOpMoveTo
+	SegmentOpLineTo
+	SegmentOpQuadTo
 
-	SegmentOpMoveTo_At1 = SegmentOpMoveTo << 2
-	SegmentOpLineTo_At1 = SegmentOpLineTo << 2
-	SegmentOpQuadTo_At1 = SegmentOpQuadTo << 2
+	SegmentOpMoveTo_MoveTo
+	SegmentOpMoveTo_LineTo
+	SegmentOpLineTo_LineTo
+	SegmentOpLineTo_MoveTo
 
-	SegmentOpMoveTo_At2 = SegmentOpMoveTo << 4
-	SegmentOpLineTo_At2 = SegmentOpLineTo << 4
+	SegmentOpCubeTo
 
-	SegmentOpMoveTo_MoveTo = SegmentOpMoveTo | SegmentOpMoveTo_At1
-	SegmentOpMoveTo_LineTo = SegmentOpMoveTo | SegmentOpLineTo_At1
-	SegmentOpLineTo_LineTo = SegmentOpLineTo | SegmentOpLineTo_At1
-	SegmentOpLineTo_MoveTo = SegmentOpLineTo | SegmentOpMoveTo_At1
+	SegmentOpMoveTo_QuadTo
+	SegmentOpLineTo_QuadTo
+	SegmentOpQuadTo_MoveTo
+	SegmentOpQuadTo_LineTo
 
-	SegmentOpMoveTo_QuadTo = SegmentOpMoveTo | SegmentOpQuadTo_At1
-	SegmentOpLineTo_QuadTo = SegmentOpLineTo | SegmentOpQuadTo_At1
+	SegmentOpMoveTo_MoveTo_MoveTo
+	SegmentOpMoveTo_LineTo_MoveTo
+	SegmentOpLineTo_LineTo_MoveTo
+	SegmentOpLineTo_MoveTo_MoveTo
 
-	SegmentOpQuadTo_MoveTo = SegmentOpQuadTo | SegmentOpMoveTo_At2
-	SegmentOpQuadTo_LineTo = SegmentOpQuadTo | SegmentOpLineTo_At2
-
-	SegmentOpMoveTo_MoveTo_MoveTo = SegmentOpMoveTo | SegmentOpMoveTo_At1 | SegmentOpMoveTo_At2
-	SegmentOpMoveTo_LineTo_MoveTo = SegmentOpMoveTo | SegmentOpLineTo_At1 | SegmentOpMoveTo_At2
-	SegmentOpLineTo_LineTo_MoveTo = SegmentOpLineTo | SegmentOpLineTo_At1 | SegmentOpMoveTo_At2
-	SegmentOpLineTo_MoveTo_MoveTo = SegmentOpLineTo | SegmentOpMoveTo_At1 | SegmentOpMoveTo_At2
-
-	SegmentOpMoveTo_MoveTo_LineTo = SegmentOpMoveTo | SegmentOpMoveTo_At1 | SegmentOpLineTo_At2
-	SegmentOpMoveTo_LineTo_LineTo = SegmentOpMoveTo | SegmentOpLineTo_At1 | SegmentOpLineTo_At2
-	SegmentOpLineTo_LineTo_LineTo = SegmentOpLineTo | SegmentOpLineTo_At1 | SegmentOpLineTo_At2
-	SegmentOpLineTo_MoveTo_LineTo = SegmentOpLineTo | SegmentOpMoveTo_At1 | SegmentOpLineTo_At2
+	SegmentOpMoveTo_MoveTo_LineTo
+	SegmentOpMoveTo_LineTo_LineTo
+	SegmentOpLineTo_LineTo_LineTo
+	SegmentOpLineTo_MoveTo_LineTo
 )
 
-var segmentOpUsed = [...]byte{
+var segmentOpUsed = [256]byte{
 	SegmentOpMoveTo: 1,
 	SegmentOpLineTo: 1,
-	SegmentOpQuadTo: 1,
-	SegmentOpCubeTo: 1,
+	SegmentOpQuadTo: 2,
+	SegmentOpCubeTo: 3,
 
 	SegmentOpMoveTo_MoveTo: 2,
 	SegmentOpMoveTo_LineTo: 2,
@@ -109,6 +102,41 @@ var segmentOpUsed = [...]byte{
 	SegmentOpMoveTo_LineTo_LineTo: 3,
 	SegmentOpLineTo_LineTo_LineTo: 3,
 	SegmentOpLineTo_MoveTo_LineTo: 3,
+}
+
+var transitionTable = [3][8]SegmentOp{
+	SegmentOpMoveTo - 1: {
+		SegmentOpNone: SegmentOpMoveTo | (0 << 5),
+
+		SegmentOpMoveTo: SegmentOpMoveTo_MoveTo | (1 << 5),
+		SegmentOpLineTo: SegmentOpLineTo_MoveTo | (1 << 5),
+
+		SegmentOpQuadTo: SegmentOpQuadTo_MoveTo | (2 << 5),
+
+		SegmentOpMoveTo_MoveTo: SegmentOpMoveTo_MoveTo_MoveTo | (2 << 5),
+		SegmentOpMoveTo_LineTo: SegmentOpMoveTo_LineTo_MoveTo | (2 << 5),
+		SegmentOpLineTo_LineTo: SegmentOpLineTo_LineTo_MoveTo | (2 << 5),
+		SegmentOpLineTo_MoveTo: SegmentOpLineTo_MoveTo_MoveTo | (2 << 5),
+	},
+	SegmentOpLineTo - 1: {
+		SegmentOpNone: SegmentOpLineTo | (0 << 5),
+
+		SegmentOpMoveTo: SegmentOpMoveTo_LineTo | (1 << 5),
+		SegmentOpLineTo: SegmentOpLineTo_LineTo | (1 << 5),
+
+		SegmentOpQuadTo: SegmentOpQuadTo_LineTo | (2 << 5),
+
+		SegmentOpMoveTo_MoveTo: SegmentOpMoveTo_MoveTo_LineTo | (2 << 5),
+		SegmentOpMoveTo_LineTo: SegmentOpMoveTo_LineTo_LineTo | (2 << 5),
+		SegmentOpLineTo_LineTo: SegmentOpLineTo_LineTo_LineTo | (2 << 5),
+		SegmentOpLineTo_MoveTo: SegmentOpLineTo_MoveTo_LineTo | (2 << 5),
+	},
+	SegmentOpQuadTo - 1: {
+		SegmentOpNone: SegmentOpQuadTo | (0 << 5),
+
+		SegmentOpMoveTo: SegmentOpMoveTo_QuadTo | (1 << 5),
+		SegmentOpLineTo: SegmentOpLineTo_QuadTo | (1 << 5),
+	},
 }
 
 type SegmentPoint struct {
@@ -163,43 +191,43 @@ func (builder *SegmentsBuilder) Finish() []Segment {
 }
 
 func (builder *SegmentsBuilder) MoveTo(p SegmentPoint) {
-	used := segmentOpUsed[builder.tail.Op]
-	builder.tail.Args[used] = p
-	shift := used * 2
-	builder.tail.Op |= SegmentOpMoveTo << shift
-	if shift == 4 {
+	transition := transitionTable[SegmentOpMoveTo-1][builder.tail.Op]
+	to, at := transition&0b11111, transition>>5
+	builder.tail.Op = to
+	builder.tail.Args[at] = p
+	if at == 2 {
 		builder.complete = append(builder.complete, builder.tail)
 		builder.tail.Op = 0
 	}
 }
 
 func (builder *SegmentsBuilder) LineTo(p SegmentPoint) {
-	used := segmentOpUsed[builder.tail.Op]
-	builder.tail.Args[used] = p
-	shift := used * 2
-	builder.tail.Op |= SegmentOpLineTo << shift
-	if shift == 4 {
+	transition := transitionTable[SegmentOpLineTo-1][builder.tail.Op]
+	to, at := transition&0b11111, transition>>5
+	builder.tail.Op = to
+	builder.tail.Args[at] = p
+	if at == 2 {
 		builder.complete = append(builder.complete, builder.tail)
 		builder.tail.Op = 0
 	}
 }
 
 func (builder *SegmentsBuilder) QuadTo(a, b SegmentPoint) {
-	used := segmentOpUsed[builder.tail.Op]
-	if used > 1 {
+	transition := transitionTable[SegmentOpQuadTo-1][builder.tail.Op]
+	var to, at SegmentOp
+	if transition == 0 {
 		builder.complete = append(builder.complete, builder.tail)
-		builder.tail.Op = SegmentOpQuadTo
-		builder.tail.Args[0] = a
-		builder.tail.Args[1] = b
-		return
+		builder.tail.Op = 0
+		to, at = SegmentOpQuadTo, 0
+	} else {
+		to, at = transition&0b11111, transition>>5
 	}
 
-	builder.tail.Args[used] = a
-	builder.tail.Args[used+1] = b
+	builder.tail.Op = to
+	builder.tail.Args[at] = a
+	builder.tail.Args[at+1] = b
 
-	shift := used * 2
-	builder.tail.Op |= SegmentOpQuadTo << shift
-	if shift == 2 {
+	if at == 1 {
 		builder.complete = append(builder.complete, builder.tail)
 		builder.tail.Op = 0
 	}
