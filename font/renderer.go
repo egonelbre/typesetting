@@ -272,10 +272,6 @@ func buildSegments(points []contourPoint) []Segment {
 			} else if !firstOffCurveValid {
 				firstOffCurve = p
 				firstOffCurveValid = true
-
-				if !point.isEndPoint {
-					continue
-				}
 			} else {
 				firstOnCurve = midPoint(firstOffCurve, p)
 				firstOnCurveValid = true
@@ -287,10 +283,6 @@ func buildSegments(points []contourPoint) []Segment {
 			if !point.isOnCurve {
 				lastOffCurve = p
 				lastOffCurveValid = true
-
-				if !point.isEndPoint {
-					continue
-				}
 			} else {
 				out.LineTo(p)
 			}
