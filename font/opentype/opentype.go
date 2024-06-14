@@ -148,10 +148,10 @@ func (builder *SegmentsBuilder) MoveTo(p SegmentPoint) {
 		builder.tail.Op = SegmentOpMoveTo
 	case 1:
 		builder.tail.Args[1] = p
-		builder.tail.Op = SegmentOpMoveTo << 2
+		builder.tail.Op |= SegmentOpMoveTo << 2
 	case 2:
 		builder.tail.Args[2] = p
-		builder.tail.Op = SegmentOpMoveTo << 4
+		builder.tail.Op |= SegmentOpMoveTo << 4
 		builder.complete = append(builder.complete, builder.tail)
 		builder.tail.Op = 0
 	}
@@ -164,10 +164,10 @@ func (builder *SegmentsBuilder) LineTo(p SegmentPoint) {
 		builder.tail.Op = SegmentOpLineTo
 	case 1:
 		builder.tail.Args[1] = p
-		builder.tail.Op = SegmentOpLineTo << 2
+		builder.tail.Op |= SegmentOpLineTo << 2
 	case 2:
 		builder.tail.Args[2] = p
-		builder.tail.Op = SegmentOpLineTo << 4
+		builder.tail.Op |= SegmentOpLineTo << 4
 		builder.complete = append(builder.complete, builder.tail)
 		builder.tail.Op = 0
 	}
@@ -183,7 +183,7 @@ func (builder *SegmentsBuilder) QuadTo(a, b SegmentPoint) {
 		builder.tail.Args[0] = a
 		builder.tail.Args[1] = b
 	case 1:
-		builder.tail.Op = SegmentOpQuadTo << 2
+		builder.tail.Op |= SegmentOpQuadTo << 2
 		builder.tail.Args[1] = a
 		builder.tail.Args[2] = b
 		builder.complete = append(builder.complete, builder.tail)
