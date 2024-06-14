@@ -85,3 +85,50 @@ func (s *Segment) ArgsSlice() []SegmentPoint {
 		panic("unreachable")
 	}
 }
+
+// SegmentsBuilder allows to create a segments slice.
+type SegmentsBuilder struct {
+	ready []Segment
+}
+
+// Grow grows the capacity of the internal buffer.
+func (build *SegmentsBuilder) Grow(n int) {
+	build.ready = append(build.ready, make([]Segment, n)...)[:len(build.ready)]
+}
+
+// Finish returns the finished segments slice.
+func (build *SegmentsBuilder) Finish() []Segment {
+	return build.ready
+}
+
+// MoveTo adds SegmentOpMoveTo operation.
+func (build *SegmentsBuilder) MoveTo(p SegmentPoint) {
+	build.ready = append(build.ready, Segment{
+		Op:   SegmentOpMoveTo,
+		Args: [3]SegmentPoint{p},
+	})
+}
+
+// LineTo adds SegmentOpLineTo operation.
+func (build *SegmentsBuilder) LineTo(p SegmentPoint) {
+	build.ready = append(build.ready, Segment{
+		Op:   SegmentOpLineTo,
+		Args: [3]SegmentPoint{p},
+	})
+}
+
+// QuadTo adds SegmentOpQuadTo operation.
+func (build *SegmentsBuilder) QuadTo(a, b SegmentPoint) {
+	build.ready = append(build.ready, Segment{
+		Op:   SegmentOpQuadTo,
+		Args: [3]SegmentPoint{a, b},
+	})
+}
+
+// CubeTo adds SegmentOpCubeTo operation.
+func (build *SegmentsBuilder) CubeTo(a, b, c SegmentPoint) {
+	build.ready = append(build.ready, Segment{
+		Op:   SegmentOpCubeTo,
+		Args: [3]SegmentPoint{a, b, c},
+	})
+}

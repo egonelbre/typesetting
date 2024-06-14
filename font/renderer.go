@@ -259,7 +259,8 @@ func buildSegments(points []contourPoint) []Segment {
 		firstOnCurve, firstOffCurve, lastOffCurve                SegmentPoint
 	)
 
-	out := make([]Segment, 0, len(points)+2)
+	var out ot.SegmentsBuilder
+	out.Grow(len(points) + 2)
 
 	for _, point := range points {
 		p := point.SegmentPoint
@@ -267,10 +268,7 @@ func buildSegments(points []contourPoint) []Segment {
 			if point.isOnCurve {
 				firstOnCurve = p
 				firstOnCurveValid = true
-				out = append(out, Segment{
-					Op:   ot.SegmentOpMoveTo,
-					Args: [3]SegmentPoint{p},
-				})
+				out.MoveTo(p)
 			} else if !firstOffCurveValid {
 				firstOffCurve = p
 				firstOffCurveValid = true
@@ -283,10 +281,7 @@ func buildSegments(points []contourPoint) []Segment {
 				firstOnCurveValid = true
 				lastOffCurve = p
 				lastOffCurveValid = true
-				out = append(out, Segment{
-					Op:   ot.SegmentOpMoveTo,
-					Args: [3]SegmentPoint{firstOnCurve},
-				})
+				out.MoveTo(firstOnCurve)
 			}
 		} else if !lastOffCurveValid {
 			if !point.isOnCurve {
@@ -297,27 +292,15 @@ func buildSegments(points []contourPoint) []Segment {
 					continue
 				}
 			} else {
-				out = append(out, Segment{
-					Op:   ot.SegmentOpLineTo,
-					Args: [3]SegmentPoint{p},
-				})
+				out.LineTo(p)
 			}
 		} else {
 			if !point.isOnCurve {
-				out = append(out, Segment{
-					Op: ot.SegmentOpQuadTo,
-					Args: [3]SegmentPoint{
-						lastOffCurve,
-						midPoint(lastOffCurve, p),
-					},
-				})
+				out.QuadTo(lastOffCurve, midPoint(lastOffCurve, p))
 				lastOffCurve = p
 				lastOffCurveValid = true
 			} else {
-				out = append(out, Segment{
-					Op:   ot.SegmentOpQuadTo,
-					Args: [3]SegmentPoint{lastOffCurve, p},
-				})
+				out.QuadTo(lastOffCurve, p)
 				lastOffCurveValid = false
 			}
 		}
@@ -326,33 +309,14 @@ func buildSegments(points []contourPoint) []Segment {
 			// closing the contour
 			switch {
 			case !firstOffCurveValid && !lastOffCurveValid:
-				out = append(out, Segment{
-					Op:   ot.SegmentOpLineTo,
-					Args: [3]SegmentPoint{firstOnCurve},
-				})
+				out.LineTo(firstOnCurve)
 			case !firstOffCurveValid && lastOffCurveValid:
-				out = append(out, Segment{
-					Op:   ot.SegmentOpQuadTo,
-					Args: [3]SegmentPoint{lastOffCurve, firstOnCurve},
-				})
+				out.QuadTo(lastOffCurve, firstOnCurve)
 			case firstOffCurveValid && !lastOffCurveValid:
-				out = append(out, Segment{
-					Op:   ot.SegmentOpQuadTo,
-					Args: [3]SegmentPoint{firstOffCurve, firstOnCurve},
-				})
+				out.QuadTo(firstOffCurve, firstOnCurve)
 			case firstOffCurveValid && lastOffCurveValid:
-				out = append(out, Segment{
-					Op: ot.SegmentOpQuadTo,
-					Args: [3]SegmentPoint{
-						lastOffCurve,
-						midPoint(lastOffCurve, firstOffCurve),
-					},
-				},
-					Segment{
-						Op:   ot.SegmentOpQuadTo,
-						Args: [3]SegmentPoint{firstOffCurve, firstOnCurve},
-					},
-				)
+				out.QuadTo(lastOffCurve, midPoint(lastOffCurve, firstOffCurve))
+				out.QuadTo(firstOffCurve, firstOnCurve)
 			}
 
 			firstOnCurveValid = false
@@ -361,7 +325,7 @@ func buildSegments(points []contourPoint) []Segment {
 		}
 	}
 
-	return out
+	return out.Finish()
 }
 
 type errGlyphOutOfRange int
