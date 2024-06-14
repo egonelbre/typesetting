@@ -10,7 +10,6 @@ package opentype
 
 import (
 	"math/bits"
-	"slices"
 )
 
 type Tag uint32
@@ -123,7 +122,9 @@ type SegmentsBuilder struct {
 }
 
 func (builder *SegmentsBuilder) Grow(n int) {
-	builder.complete = slices.Grow(builder.complete, n)
+	if n -= cap(builder.complete) - len(builder.complete); n > 0 {
+		builder.complete = append(builder.complete[:cap(builder.complete)], make([]Segment, n)...)[:len(builder.complete)]
+	}
 }
 
 func (builder *SegmentsBuilder) Finish() []Segment {
