@@ -59,33 +59,26 @@ const (
 	SegmentOpQuadTo           = 0b1111
 	SegmentOpCubeTo           = 0b111111
 
-	SegmentOpMoveTo_At1 = SegmentOpMoveTo << 2
-	SegmentOpLineTo_At1 = SegmentOpLineTo << 2
-	SegmentOpQuadTo_At1 = SegmentOpQuadTo << 2
+	SegmentOpMoveTo_MoveTo = SegmentOpMoveTo | SegmentOpMoveTo<<2
+	SegmentOpMoveTo_LineTo = SegmentOpMoveTo | SegmentOpLineTo<<2
+	SegmentOpLineTo_LineTo = SegmentOpLineTo | SegmentOpLineTo<<2
+	SegmentOpLineTo_MoveTo = SegmentOpLineTo | SegmentOpMoveTo<<2
 
-	SegmentOpMoveTo_At2 = SegmentOpMoveTo << 4
-	SegmentOpLineTo_At2 = SegmentOpLineTo << 4
+	SegmentOpMoveTo_QuadTo = SegmentOpMoveTo | SegmentOpQuadTo<<2
+	SegmentOpLineTo_QuadTo = SegmentOpLineTo | SegmentOpQuadTo<<2
 
-	SegmentOpMoveTo_MoveTo = SegmentOpMoveTo | SegmentOpMoveTo_At1
-	SegmentOpMoveTo_LineTo = SegmentOpMoveTo | SegmentOpLineTo_At1
-	SegmentOpLineTo_LineTo = SegmentOpLineTo | SegmentOpLineTo_At1
-	SegmentOpLineTo_MoveTo = SegmentOpLineTo | SegmentOpMoveTo_At1
+	SegmentOpQuadTo_MoveTo = SegmentOpQuadTo | SegmentOpMoveTo<<4
+	SegmentOpQuadTo_LineTo = SegmentOpQuadTo | SegmentOpLineTo<<4
 
-	SegmentOpMoveTo_QuadTo = SegmentOpMoveTo | SegmentOpQuadTo_At1
-	SegmentOpLineTo_QuadTo = SegmentOpLineTo | SegmentOpQuadTo_At1
+	SegmentOpMoveTo_MoveTo_MoveTo = SegmentOpMoveTo | SegmentOpMoveTo<<2 | SegmentOpMoveTo<<4
+	SegmentOpMoveTo_LineTo_MoveTo = SegmentOpMoveTo | SegmentOpLineTo<<2 | SegmentOpMoveTo<<4
+	SegmentOpLineTo_LineTo_MoveTo = SegmentOpLineTo | SegmentOpLineTo<<2 | SegmentOpMoveTo<<4
+	SegmentOpLineTo_MoveTo_MoveTo = SegmentOpLineTo | SegmentOpMoveTo<<2 | SegmentOpMoveTo<<4
 
-	SegmentOpQuadTo_MoveTo = SegmentOpQuadTo | SegmentOpMoveTo_At2
-	SegmentOpQuadTo_LineTo = SegmentOpQuadTo | SegmentOpLineTo_At2
-
-	SegmentOpMoveTo_MoveTo_MoveTo = SegmentOpMoveTo | SegmentOpMoveTo_At1 | SegmentOpMoveTo_At2
-	SegmentOpMoveTo_LineTo_MoveTo = SegmentOpMoveTo | SegmentOpLineTo_At1 | SegmentOpMoveTo_At2
-	SegmentOpLineTo_LineTo_MoveTo = SegmentOpLineTo | SegmentOpLineTo_At1 | SegmentOpMoveTo_At2
-	SegmentOpLineTo_MoveTo_MoveTo = SegmentOpLineTo | SegmentOpMoveTo_At1 | SegmentOpMoveTo_At2
-
-	SegmentOpMoveTo_MoveTo_LineTo = SegmentOpMoveTo | SegmentOpMoveTo_At1 | SegmentOpLineTo_At2
-	SegmentOpMoveTo_LineTo_LineTo = SegmentOpMoveTo | SegmentOpLineTo_At1 | SegmentOpLineTo_At2
-	SegmentOpLineTo_LineTo_LineTo = SegmentOpLineTo | SegmentOpLineTo_At1 | SegmentOpLineTo_At2
-	SegmentOpLineTo_MoveTo_LineTo = SegmentOpLineTo | SegmentOpMoveTo_At1 | SegmentOpLineTo_At2
+	SegmentOpMoveTo_MoveTo_LineTo = SegmentOpMoveTo | SegmentOpMoveTo<<2 | SegmentOpLineTo<<4
+	SegmentOpMoveTo_LineTo_LineTo = SegmentOpMoveTo | SegmentOpLineTo<<2 | SegmentOpLineTo<<4
+	SegmentOpLineTo_LineTo_LineTo = SegmentOpLineTo | SegmentOpLineTo<<2 | SegmentOpLineTo<<4
+	SegmentOpLineTo_MoveTo_LineTo = SegmentOpLineTo | SegmentOpMoveTo<<2 | SegmentOpLineTo<<4
 )
 
 func (op SegmentOp) Used() int { return (bits.Len8(uint8(op)) + 1) / 2 }

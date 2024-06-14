@@ -262,7 +262,8 @@ func buildSegments(points []contourPoint) []Segment {
 	var out ot.SegmentsBuilder
 	out.Grow(len(points) / 2)
 
-	for _, point := range points {
+	for i := range points {
+		point := &points[i]
 		p := point.SegmentPoint
 		if !firstOnCurveValid {
 			if point.isOnCurve {
