@@ -266,31 +266,25 @@ func buildSegments(points []contourPoint) []Segment {
 		p := point.SegmentPoint
 		if !firstOnCurveValid {
 			if point.isOnCurve {
-				firstOnCurve = p
-				firstOnCurveValid = true
+				firstOnCurve, firstOnCurveValid = p, true
 				out.MoveTo(p)
 			} else if !firstOffCurveValid {
-				firstOffCurve = p
-				firstOffCurveValid = true
+				firstOffCurve, firstOffCurveValid = p, true
 			} else {
-				firstOnCurve = midPoint(firstOffCurve, p)
-				firstOnCurveValid = true
-				lastOffCurve = p
-				lastOffCurveValid = true
+				firstOnCurve, firstOnCurveValid = midPoint(firstOffCurve, p), true
+				lastOffCurve, lastOffCurveValid = p, true
 				out.MoveTo(firstOnCurve)
 			}
 		} else if !lastOffCurveValid {
 			if !point.isOnCurve {
-				lastOffCurve = p
-				lastOffCurveValid = true
+				lastOffCurve, lastOffCurveValid = p, true
 			} else {
 				out.LineTo(p)
 			}
 		} else {
 			if !point.isOnCurve {
 				out.QuadTo(lastOffCurve, midPoint(lastOffCurve, p))
-				lastOffCurve = p
-				lastOffCurveValid = true
+				lastOffCurve, lastOffCurveValid = p, true
 			} else {
 				out.QuadTo(lastOffCurve, p)
 				lastOffCurveValid = false
